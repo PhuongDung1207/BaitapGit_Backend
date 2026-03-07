@@ -29,7 +29,9 @@ Default server: `http://localhost:3000`
 - `GET /api/health`
 
 ### Warehouses
-- `GET /api/warehouses`
+- `GET /api/warehouses?q=main&location=chi%20minh&hasStock=true&sortBy=totalQuantity&sortOrder=desc&page=1&limit=10`
+- `GET /api/warehouses/:id/inventory?q=sku&onlyLowStock=true&threshold=10&sortBy=quantity&sortOrder=asc&page=1&limit=20`
+- `GET /api/warehouses/:id/transactions?type=RECEIVE&productId=product-id&q=note&page=1&limit=20`
 - `GET /api/warehouses/:id`
 - `POST /api/warehouses`
 - `PUT /api/warehouses/:id`
@@ -114,6 +116,7 @@ Duplicate product note:
 - `GET /api/inventory/transactions`
 - `POST /api/inventory/receive`
 - `POST /api/inventory/ship`
+- `POST /api/inventory/transfer`
 
 Receive/Ship body example:
 
@@ -123,6 +126,18 @@ Receive/Ship body example:
   "productId": "product-id",
   "quantity": 25,
   "note": "Initial stock"
+}
+```
+
+Transfer body example:
+
+```json
+{
+  "fromWarehouseId": "warehouse-id-A",
+  "toWarehouseId": "warehouse-id-B",
+  "productId": "product-id",
+  "quantity": 10,
+  "note": "Move to overflow area"
 }
 ```
 

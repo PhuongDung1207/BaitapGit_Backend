@@ -101,6 +101,98 @@ function shipStock(req, res, next) {
   }
 }
 
+function buildTransferNote(direction, warehouseName, customNote) {
+  const baseText =
+    direction === "OUT"
+      ? `Transfer to ${warehouseName}`
+      : `Transfer from ${warehouseName}`;
+
+  if (!customNote) {
+    return baseText;
+  }
+
+  return `${baseText}. ${customNote}`;
+}
+
+function transferStock(req, res, next) {
+  try {
+    const { fromWarehouseId, toWarehouseId, productId, quantity, note } = req.body;
+    const parsedQuantity = parsePositiveNumber(quantity);
+    const normalizedNote = note ? String(note).trim() : "";
+
+    if (!fromWarehouseId || !toWarehouseId || !productId || !parsedQuantity) {
+      throw badRequest("fromWarehouseId, toWarehouseId, productId and positive quantity are required");
+    }
+
+    if (fromWarehouseId === toWarehouseId) {
+      throw badRequest("fromWarehouseId and toWarehouseId must be different");
+    }
+
+    const { warehouse: fromWarehouse } = ensureWarehouseAndProduct(fromWarehouseId, productId);
+    const { warehouse: toWarehouse } = ensureWarehouseAndProduct(toWarehouseId, productId);
+
+    const fromKey = getStockRecord(fromWarehouseId, productId);
+    const toKey = getStockRecord(toWarehouseId, productId);
+
+    if (stockByWarehouseProduct[fromKey] < parsedQuantity) {
+      throw badRequest("Insufficient stock in source warehouse");
+    }
+
+    stockByWarehouseProduct[fromKey] -= parsedQuantity;
+    stockByWarehouseProduct[toKey] += parsedQuantity;
+
+    const transferId = uuidv4();
+    const createdAt = new Date().toISOString();
+
+    const shipTransaction = {
+      id: uuidv4(),
+      referenceId: transferId,
+      type: "SHIP",
+      warehouseId: fromWarehouseId,
+      counterpartyWarehouseId: toWarehouseId,
+      productId,
+      quantity: parsedQuantity,
+      note: buildTransferNote("OUT", toWarehouse.name, normalizedNote),
+      createdAt
+    };
+
+    const receiveTransaction = {
+      id: uuidv4(),
+      referenceId: transferId,
+      type: "RECEIVE",
+      warehouseId: toWarehouseId,
+      counterpartyWarehouseId: fromWarehouseId,
+      productId,
+      quantity: parsedQuantity,
+      note: buildTransferNote("IN", fromWarehouse.name, normalizedNote),
+      createdAt
+    };
+
+    transactions.push(shipTransaction, receiveTransaction);
+
+    res.status(201).json({
+      data: {
+        transferId,
+        productId,
+        quantity: parsedQuantity,
+        fromWarehouse: {
+          id: fromWarehouseId,
+          name: fromWarehouse.name,
+          currentStock: stockByWarehouseProduct[fromKey]
+        },
+        toWarehouse: {
+          id: toWarehouseId,
+          name: toWarehouse.name,
+          currentStock: stockByWarehouseProduct[toKey]
+        },
+        transactions: [shipTransaction, receiveTransaction]
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 function getStock(req, res, next) {
   try {
     const { warehouseId, productId } = req.query;
@@ -136,6 +228,7 @@ function getTransactions(_req, res) {
 module.exports = {
   receiveStock,
   shipStock,
+  transferStock,
   getStock,
   getTransactions
 };
