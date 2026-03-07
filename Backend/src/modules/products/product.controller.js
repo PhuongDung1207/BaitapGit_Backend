@@ -3,35 +3,7 @@ const { products, transactions, stockByWarehouseProduct } = require("../../data/
 const { badRequest, notFound } = require("../../utils/http");
 
 function listProducts(_req, res) {
-  const data = products.map((item) => ({
-    ...item,
-    imageUrl: item.imageUrl || null
-  }));
-  res.json({ data });
-}
-
-
-function searchProducts(req, res) {
-  const keyword = String(req.query.q || "").trim().toLowerCase();
-
-  if (!keyword) {
-    return res.json({ data: [] });
-  }
-
-  const results = products
-    .filter((item) => {
-      const sku = String(item.sku || "").toLowerCase();
-      const name = String(item.name || "").toLowerCase();
-      const unit = String(item.unit || "").toLowerCase();
-
-      return sku.includes(keyword) || name.includes(keyword) || unit.includes(keyword);
-    })
-    .map((item) => ({
-      ...item,
-      imageUrl: item.imageUrl || null
-    }));
-
-  return res.json({ data: results });
+  res.json({ data: products });
 }
 
 function getProductById(req, res, next) {
@@ -40,12 +12,7 @@ function getProductById(req, res, next) {
     if (!product) {
       throw notFound("Product not found");
     }
-    res.json({
-      data: {
-        ...product,
-        imageUrl: product.imageUrl || null
-      }
-    });
+    res.json({ data: product });
   } catch (error) {
     next(error);
   }
@@ -53,7 +20,7 @@ function getProductById(req, res, next) {
 
 function createProduct(req, res, next) {
   try {
-    const { sku, name, unit, imageUrl } = req.body;
+    const { sku, name, unit } = req.body;
     if (!sku || !name) {
       throw badRequest("sku and name are required");
     }
@@ -69,7 +36,6 @@ function createProduct(req, res, next) {
       sku: skuText,
       name: String(name).trim(),
       unit: unit ? String(unit).trim() : "item",
-      imageUrl: imageUrl ? String(imageUrl).trim() : null,
       createdAt: new Date().toISOString()
     };
 
@@ -87,7 +53,7 @@ function updateProduct(req, res, next) {
       throw notFound("Product not found");
     }
 
-    const { sku, name, unit, imageUrl } = req.body;
+    const { sku, name, unit } = req.body;
     if (sku !== undefined) {
       const skuText = String(sku).trim();
       const conflict = products.some((item) => item.sku === skuText && item.id !== product.id);
@@ -102,17 +68,8 @@ function updateProduct(req, res, next) {
     if (unit !== undefined) {
       product.unit = String(unit).trim();
     }
-    if (imageUrl !== undefined) {
-      const imageText = String(imageUrl).trim();
-      product.imageUrl = imageText || null;
-    }
 
-    res.json({
-      data: {
-        ...product,
-        imageUrl: product.imageUrl || null
-      }
-    });
+    res.json({ data: product });
   } catch (error) {
     next(error);
   }
@@ -147,7 +104,6 @@ function deleteProduct(req, res, next) {
 
 module.exports = {
   listProducts,
-  searchProducts,
   getProductById,
   createProduct,
   updateProduct,
