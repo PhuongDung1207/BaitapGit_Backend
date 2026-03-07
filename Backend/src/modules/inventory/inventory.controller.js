@@ -193,6 +193,70 @@ function transferStock(req, res, next) {
   }
 }
 
+function buildAdjustmentNote(direction, reason, note) {
+  const normalizedDirection = direction === "INCREASE" ? "Increase" : "Decrease";
+  const reasonText = reason ? String(reason).trim() : "";
+  const noteText = note ? String(note).trim() : "";
+
+  let output = `Manual stock adjustment (${normalizedDirection})`;
+  if (reasonText) {
+    output = `${output}. Reason: ${reasonText}`;
+  }
+  if (noteText) {
+    output = `${output}. ${noteText}`;
+  }
+  return output;
+}
+
+function adjustStock(req, res, next) {
+  try {
+    const { warehouseId, productId, quantity, direction, reason, note } = req.body;
+    const parsedQuantity = parsePositiveNumber(quantity);
+    const normalizedDirection = String(direction || "")
+      .trim()
+      .toUpperCase();
+
+    if (!warehouseId || !productId || !parsedQuantity || !normalizedDirection) {
+      throw badRequest("warehouseId, productId, direction and positive quantity are required");
+    }
+
+    if (normalizedDirection !== "INCREASE" && normalizedDirection !== "DECREASE") {
+      throw badRequest("direction must be INCREASE or DECREASE");
+    }
+
+    ensureWarehouseAndProduct(warehouseId, productId);
+    const key = getStockRecord(warehouseId, productId);
+
+    if (normalizedDirection === "DECREASE" && stockByWarehouseProduct[key] < parsedQuantity) {
+      throw badRequest("Insufficient stock for decrease adjustment");
+    }
+
+    const isIncrease = normalizedDirection === "INCREASE";
+    stockByWarehouseProduct[key] += isIncrease ? parsedQuantity : -parsedQuantity;
+
+    const transaction = {
+      id: uuidv4(),
+      type: isIncrease ? "RECEIVE" : "SHIP",
+      warehouseId,
+      productId,
+      quantity: parsedQuantity,
+      note: buildAdjustmentNote(normalizedDirection, reason, note),
+      adjustmentType: "MANUAL",
+      createdAt: new Date().toISOString()
+    };
+
+    transactions.push(transaction);
+    res.status(201).json({
+      data: {
+        transaction,
+        currentStock: stockByWarehouseProduct[key]
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 function getStock(req, res, next) {
   try {
     const { warehouseId, productId } = req.query;
@@ -229,6 +293,7 @@ module.exports = {
   receiveStock,
   shipStock,
   transferStock,
+  adjustStock,
   getStock,
   getTransactions
 };

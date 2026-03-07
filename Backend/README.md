@@ -32,6 +32,7 @@ Default server: `http://localhost:3000`
 - `GET /api/warehouses?q=main&location=chi%20minh&hasStock=true&sortBy=totalQuantity&sortOrder=desc&page=1&limit=10`
 - `GET /api/warehouses/:id/inventory?q=sku&onlyLowStock=true&threshold=10&sortBy=quantity&sortOrder=asc&page=1&limit=20`
 - `GET /api/warehouses/:id/transactions?type=RECEIVE&productId=product-id&q=note&page=1&limit=20`
+- `GET /api/warehouses/:id/dashboard?threshold=10&recentLimit=10`
 - `GET /api/warehouses/:id`
 - `POST /api/warehouses`
 - `PUT /api/warehouses/:id`
@@ -117,6 +118,7 @@ Duplicate product note:
 - `POST /api/inventory/receive`
 - `POST /api/inventory/ship`
 - `POST /api/inventory/transfer`
+- `POST /api/inventory/adjust`
 
 Receive/Ship body example:
 
@@ -138,6 +140,19 @@ Transfer body example:
   "productId": "product-id",
   "quantity": 10,
   "note": "Move to overflow area"
+}
+```
+
+Adjust body example:
+
+```json
+{
+  "warehouseId": "warehouse-id",
+  "productId": "product-id",
+  "direction": "DECREASE",
+  "quantity": 3,
+  "reason": "Damaged items",
+  "note": "Broken during transport"
 }
 ```
 

@@ -370,6 +370,146 @@ function getWarehouseTransactions(req, res, next) {
   }
 }
 
+function getWarehouseDashboard(req, res, next) {
+  try {
+    const warehouse = warehouses.find((item) => item.id === req.params.id);
+    if (!warehouse) {
+      throw notFound("Warehouse not found");
+    }
+
+    const threshold = Math.max(0, Number(req.query.threshold) || 10);
+    const recentLimit = Math.min(50, Math.max(1, Number(req.query.recentLimit) || 10));
+    const now = Date.now();
+    const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+    const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+
+    const warehouseInventory = Object.entries(stockByWarehouseProduct)
+      .map(([key, quantity]) => {
+        const [warehouseId, productId] = key.split(":");
+        return {
+          warehouseId,
+          productId,
+          quantity
+        };
+      })
+      .filter((item) => item.warehouseId === warehouse.id);
+
+    const inventoryDetail = warehouseInventory.map((item) => {
+      const product = products.find((entry) => entry.id === item.productId);
+      return {
+        productId: item.productId,
+        sku: product ? product.sku : null,
+        productName: product ? product.name : null,
+        unit: product ? product.unit : null,
+        quantity: item.quantity
+      };
+    });
+
+    const warehouseTransactions = transactions
+      .filter((item) => item.warehouseId === warehouse.id)
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+
+    const recentTransactions = warehouseTransactions.slice(0, recentLimit).map((item) => {
+      const product = products.find((entry) => entry.id === item.productId);
+      return {
+        ...item,
+        product: product
+          ? {
+              id: product.id,
+              sku: product.sku,
+              name: product.name,
+              unit: product.unit
+            }
+          : null
+      };
+    });
+
+    const last7Days = warehouseTransactions.filter((item) => {
+      const createdAtMs = Date.parse(item.createdAt);
+      return Number.isFinite(createdAtMs) && createdAtMs >= sevenDaysAgo;
+    });
+
+    const last30Days = warehouseTransactions.filter((item) => {
+      const createdAtMs = Date.parse(item.createdAt);
+      return Number.isFinite(createdAtMs) && createdAtMs >= thirtyDaysAgo;
+    });
+
+    const topMovingProducts = Array.from(
+      last30Days.reduce((map, item) => {
+        const current = map.get(item.productId) || {
+          productId: item.productId,
+          totalMovement: 0,
+          totalIn: 0,
+          totalOut: 0
+        };
+
+        current.totalMovement += item.quantity;
+        if (item.type === "RECEIVE") {
+          current.totalIn += item.quantity;
+        }
+        if (item.type === "SHIP") {
+          current.totalOut += item.quantity;
+        }
+        map.set(item.productId, current);
+        return map;
+      }, new Map()).values()
+    )
+      .sort((a, b) => b.totalMovement - a.totalMovement)
+      .slice(0, 5)
+      .map((item) => {
+        const product = products.find((entry) => entry.id === item.productId);
+        return {
+          ...item,
+          product: product
+            ? {
+                id: product.id,
+                sku: product.sku,
+                name: product.name,
+                unit: product.unit
+              }
+            : null
+        };
+      });
+
+    res.json({
+      data: {
+        warehouse: enrichWarehouse(warehouse),
+        inventory: {
+          totalQuantity: inventoryDetail.reduce((sum, item) => sum + item.quantity, 0),
+          totalProducts: inventoryDetail.filter((item) => item.quantity > 0).length,
+          outOfStockProducts: inventoryDetail.filter((item) => item.quantity === 0).length,
+          lowStockProducts: inventoryDetail.filter((item) => item.quantity <= threshold).length,
+          threshold
+        },
+        movement: {
+          last7Days: {
+            totalIn: last7Days
+              .filter((item) => item.type === "RECEIVE")
+              .reduce((sum, item) => sum + item.quantity, 0),
+            totalOut: last7Days
+              .filter((item) => item.type === "SHIP")
+              .reduce((sum, item) => sum + item.quantity, 0),
+            totalTransactions: last7Days.length
+          },
+          last30Days: {
+            totalIn: last30Days
+              .filter((item) => item.type === "RECEIVE")
+              .reduce((sum, item) => sum + item.quantity, 0),
+            totalOut: last30Days
+              .filter((item) => item.type === "SHIP")
+              .reduce((sum, item) => sum + item.quantity, 0),
+            totalTransactions: last30Days.length
+          }
+        },
+        topMovingProducts,
+        recentTransactions
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   listWarehouses,
   getWarehouseById,
@@ -377,5 +517,6 @@ module.exports = {
   updateWarehouse,
   deleteWarehouse,
   getWarehouseInventorySummary,
-  getWarehouseTransactions
+  getWarehouseTransactions,
+  getWarehouseDashboard
 };
