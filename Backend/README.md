@@ -46,6 +46,7 @@ Body example:
 
 ### Products
 - `GET /api/products`
+- `GET /api/products/search?q=keyword`
 - `GET /api/products/:id`
 - `POST /api/products`
 - `PUT /api/products/:id`
@@ -57,9 +58,12 @@ Body example:
 {
   "sku": "SKU-001",
   "name": "Steel Box",
-  "unit": "piece"
+  "unit": "piece",
+  "imageUrl": "https://example.com/images/steel-box.jpg"
 }
 ```
+
+`imageUrl` is optional and returned in product list/detail responses.
 
 ### Inventory
 - `GET /api/inventory/stock?warehouseId=&productId=`
