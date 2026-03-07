@@ -46,14 +46,17 @@ Body example:
 
 ### Products
 - `GET /api/products`
-- `GET /api/products?q=steel&unit=piece&sortBy=name&sortOrder=asc&page=1&limit=10`
+- `GET /api/products?q=steel&unit=piece&isActive=true&sortBy=name&sortOrder=asc&page=1&limit=10`
 - `GET /api/products/search?q=keyword`
 - `GET /api/products/low-stock?threshold=10`
 - `GET /api/products/:id`
 - `GET /api/products/:id/inventory`
+- `GET /api/products/:id/transactions?type=RECEIVE&page=1&limit=20`
 - `POST /api/products`
 - `POST /api/products/bulk`
+- `POST /api/products/:id/duplicate`
 - `PUT /api/products/:id`
+- `PATCH /api/products/:id/status`
 - `DELETE /api/products/:id`
 
 Body example:
@@ -64,6 +67,14 @@ Body example:
   "name": "Steel Box",
   "unit": "piece",
   "imageUrl": "https://example.com/images/steel-box.jpg"
+}
+```
+
+Update product status example:
+
+```json
+{
+  "isActive": false
 }
 ```
 
@@ -84,6 +95,17 @@ Bulk create example:
       "unit": "piece"
     }
   ]
+}
+```
+
+Duplicate product note:
+- `POST /api/products/:id/duplicate` can duplicate a product.
+- Optional body:
+
+```json
+{
+  "sku": "SKU-001-COPY-CUSTOM",
+  "name": "Steel Box Special Copy"
 }
 ```
 

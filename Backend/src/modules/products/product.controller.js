@@ -10,7 +10,8 @@ const { badRequest, notFound } = require("../../utils/http");
 function serializeProduct(product) {
   return {
     ...product,
-    imageUrl: product.imageUrl || null
+    imageUrl: product.imageUrl || null,
+    isActive: product.isActive !== false
   };
 }
 
@@ -27,6 +28,7 @@ function getProductTotalStock(productId) {
 function listProducts(req, res) {
   const q = String(req.query.q || "").trim().toLowerCase();
   const unit = String(req.query.unit || "").trim().toLowerCase();
+  const isActiveQuery = req.query.isActive;
   const sortBy = String(req.query.sortBy || "createdAt");
   const sortOrder = String(req.query.sortOrder || "desc").toLowerCase() === "asc" ? "asc" : "desc";
   const page = Math.max(1, Number(req.query.page) || 1);
@@ -45,6 +47,15 @@ function listProducts(req, res) {
 
   if (unit) {
     result = result.filter((item) => String(item.unit || "").toLowerCase() === unit);
+  }
+
+  if (isActiveQuery !== undefined) {
+    const normalized = String(isActiveQuery).trim().toLowerCase();
+    const isActive = normalized === "true" || normalized === "1";
+    const isInactive = normalized === "false" || normalized === "0";
+    if (isActive || isInactive) {
+      result = result.filter((item) => item.isActive === isActive);
+    }
   }
 
   const sortableFields = new Set(["createdAt", "name", "sku", "unit"]);
@@ -122,6 +133,7 @@ function createProduct(req, res, next) {
       name: String(name).trim(),
       unit: unit ? String(unit).trim() : "item",
       imageUrl: imageUrl ? String(imageUrl).trim() : null,
+      isActive: true,
       createdAt: new Date().toISOString()
     };
 
@@ -130,6 +142,19 @@ function createProduct(req, res, next) {
   } catch (error) {
     next(error);
   }
+}
+
+function getUniqueSkuCopy(baseSku) {
+  const firstCandidate = `${baseSku}-COPY`;
+  if (!products.some((item) => item.sku === firstCandidate)) {
+    return firstCandidate;
+  }
+
+  let count = 2;
+  while (products.some((item) => item.sku === `${baseSku}-COPY-${count}`)) {
+    count += 1;
+  }
+  return `${baseSku}-COPY-${count}`;
 }
 
 function createProductsBulk(req, res, next) {
@@ -163,6 +188,7 @@ function createProductsBulk(req, res, next) {
         name,
         unit,
         imageUrl,
+        isActive: true,
         createdAt: new Date().toISOString()
       };
     });
@@ -172,6 +198,37 @@ function createProductsBulk(req, res, next) {
       data: prepared.map(serializeProduct),
       count: prepared.length
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+function duplicateProduct(req, res, next) {
+  try {
+    const sourceProduct = products.find((item) => item.id === req.params.id);
+    if (!sourceProduct) {
+      throw notFound("Product not found");
+    }
+
+    const requestedSku = req.body && req.body.sku ? String(req.body.sku).trim() : "";
+    const requestedName = req.body && req.body.name ? String(req.body.name).trim() : "";
+    const sku = requestedSku || getUniqueSkuCopy(sourceProduct.sku);
+    if (products.some((item) => item.sku === sku)) {
+      throw badRequest("sku already exists");
+    }
+
+    const duplicated = {
+      id: uuidv4(),
+      sku,
+      name: requestedName || `${sourceProduct.name} (Copy)`,
+      unit: sourceProduct.unit,
+      imageUrl: sourceProduct.imageUrl || null,
+      isActive: sourceProduct.isActive !== false,
+      createdAt: new Date().toISOString()
+    };
+
+    products.push(duplicated);
+    res.status(201).json({ data: serializeProduct(duplicated) });
   } catch (error) {
     next(error);
   }
@@ -210,6 +267,26 @@ function updateProduct(req, res, next) {
   }
 }
 
+function updateProductStatus(req, res, next) {
+  try {
+    const product = products.find((item) => item.id === req.params.id);
+    if (!product) {
+      throw notFound("Product not found");
+    }
+
+    if (typeof req.body.isActive !== "boolean") {
+      throw badRequest("isActive must be boolean");
+    }
+
+    product.isActive = req.body.isActive;
+    product.updatedAt = new Date().toISOString();
+
+    res.json({ data: serializeProduct(product) });
+  } catch (error) {
+    next(error);
+  }
+}
+
 function getProductInventorySummary(req, res, next) {
   try {
     const product = products.find((item) => item.id === req.params.id);
@@ -239,6 +316,59 @@ function getProductInventorySummary(req, res, next) {
         product: serializeProduct(product),
         totalQuantity,
         byWarehouse
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+function getProductTransactions(req, res, next) {
+  try {
+    const product = products.find((item) => item.id === req.params.id);
+    if (!product) {
+      throw notFound("Product not found");
+    }
+
+    const type = String(req.query.type || "").trim().toUpperCase();
+    if (type && type !== "RECEIVE" && type !== "SHIP") {
+      throw badRequest("type must be RECEIVE or SHIP");
+    }
+
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+
+    let result = transactions
+      .filter((item) => item.productId === product.id)
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+
+    if (type) {
+      result = result.filter((item) => item.type === type);
+    }
+
+    const total = result.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const start = (page - 1) * limit;
+    const data = result.slice(start, start + limit);
+    const totalIn = result
+      .filter((item) => item.type === "RECEIVE")
+      .reduce((sum, item) => sum + item.quantity, 0);
+    const totalOut = result
+      .filter((item) => item.type === "SHIP")
+      .reduce((sum, item) => sum + item.quantity, 0);
+
+    res.json({
+      data,
+      summary: {
+        totalIn,
+        totalOut,
+        net: totalIn - totalOut
+      },
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages
       }
     });
   } catch (error) {
@@ -298,8 +428,11 @@ module.exports = {
   getProductById,
   createProduct,
   createProductsBulk,
+  duplicateProduct,
   updateProduct,
+  updateProductStatus,
   getProductInventorySummary,
+  getProductTransactions,
   listLowStockProducts,
   deleteProduct
 };
