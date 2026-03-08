@@ -1,0 +1,24 @@
+{
+  "name": "storage-management-backend",
+  "version": "1.0.0",
+  "description": "Backend API starter for a storage management system",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "keywords": [
+    "nodejs",
+    "express",
+    "storage-management"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "morgan": "^1.10.0",
+    "uuid": "^11.0.5"
+  }
+}
