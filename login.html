@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập | Modern App</title>
+    <link rel="stylesheet" href="login.css">
+</head>
+<body>
+    <div class="blob-c"></div>
+    <div class="blob-r"></div>
+    <div class="login-container">
+        <div class="login-header">
+            <h1>Chào mừng trở lại</h1>
+            <p>Vui lòng nhập thông tin để truy cập</p>
+        </div>
+
+        <form>
+            <div class="form-group">
+                <label for="email">Email</label>
+                <div class="input-wrapper">
+                    <input type="email" id="email" placeholder="name@example.com" required>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Mật khẩu</label>
+                <div class="input-wrapper">
+                    <input type="password" id="password" placeholder="••••••••" required>
+                </div>
+            </div>
+
+            <div class="form-options">
+                <label class="remember-me">
+                    <input type="checkbox"> Ghi nhớ đăng nhập
+                </label>
+                <a href="#" class="forgot-password">Quên mật khẩu?</a>
+            </div>
+
+            <button type="submit" class="btn-login">Đăng nhập</button>
+        </form>
+
+        <div class="social-login">
+            <p>Hoặc đăng nhập với</p>
+            <div class="social-btns">
+                <button class="social-btn">
+                    <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google">
+                </button>
+                <button class="social-btn">
+                    <img src="https://www.svgrepo.com/show/475647/facebook-color.svg" alt="Facebook">
+                </button>
+                <button class="social-btn">
+                    <img src="https://www.svgrepo.com/show/448231/github.svg" alt="Github" style="filter: invert(1);">
+                </button>
+            </div>
+        </div>
+
+        <div class="signup-link">
+            Chưa có tài khoản? <a href="#">Đăng ký ngay</a>
+        </div>
+    </div>
+
+    <!-- Micro-interaction script -->
+    <script>
+        document.querySelector('form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const btn = document.querySelector('.btn-login');
+            btn.innerHTML = 'Đang đăng nhập...';
+            btn.style.opacity = '0.7';
+            setTimeout(() => {
+                alert('Demo: Đăng nhập thành công!');
+                btn.innerHTML = 'Đăng nhập';
+                btn.style.opacity = '1';
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
